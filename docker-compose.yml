@@ -1,0 +1,45 @@
+# Stack RAG 100 % locale : Qdrant + application (Gradio) ; LM Studio tourne sur la machine hôte.
+# Les variables ${...} sont lues dans le fichier .env (voir .env.example) ou prennent la valeur par défaut.
+name: rag-stack
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.14.0
+    restart: unless-stopped
+    volumes:
+      - ./data/qdrant:/qdrant/storage
+    ports:
+      - "127.0.0.1:6333:6333"   # tableau de bord : http://localhost:6333/dashboard (retirer si inutile)
+
+  app:
+    build:
+      context: .
+      args:
+        WITH_RERANKER: ${WITH_RERANKER:-0}
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234/v1}
+      LMSTUDIO_API_KEY: ${LMSTUDIO_API_KEY:-lm-studio}
+      LLM_MODEL: ${LLM_MODEL:-}
+      EMBED_MODEL: ${EMBED_MODEL:-}
+      EMBED_QUERY_PREFIX: ${EMBED_QUERY_PREFIX:-}
+      EMBED_DOC_PREFIX: ${EMBED_DOC_PREFIX:-}
+      USE_RERANKER: ${USE_RERANKER:-false}
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-fra+eng}
+      CHILD_CHARS: ${CHILD_CHARS:-1500}
+      CHILD_OVERLAP: ${CHILD_OVERLAP:-200}
+      PARENT_CHARS: ${PARENT_CHARS:-4000}
+      APP_USER: ${APP_USER:-}
+      APP_PASSWORD: ${APP_PASSWORD:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # nécessaire sous Linux ; sans effet gênant sous Docker Desktop
+    ports:
+      # Accessible uniquement depuis cette machine. Pour l'ouvrir au réseau local : "7860:7860"
+      # (et définissez alors APP_USER / APP_PASSWORD dans .env).
+      - "127.0.0.1:${APP_PORT:-7860}:7860"
+    volumes:
+      - ./data:/data       # SQLite, textes extraits, copies des originaux téléversés, réglages
+      - ./inbox:/inbox     # dépôt de fichiers à indexer en lot (sous-dossier = espace)
